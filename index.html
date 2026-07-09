@@ -290,89 +290,60 @@ function reconcile(saved) {
   return board;
 }
 
-/* Thumbnail gambar (SVG) per proyek */
-function Thumb({ id, p }) {
-  const gid = "grad-" + id;
-  return (
-    <svg viewBox="0 0 400 200" className="w-full h-full" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id={gid} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor={p.c1} />
-          <stop offset="1" stopColor={p.c2} />
-        </linearGradient>
-      </defs>
-      <rect width="400" height="200" fill={`url(#${gid})`} />
-      <circle cx="330" cy="34" r="95" fill="#ffffff" opacity="0.14" />
-      <circle cx="60" cy="200" r="80" fill="#000000" opacity="0.12" />
-      <g stroke="#ffffff" strokeOpacity="0.18" strokeWidth="1.5" fill="none">
-        <path d="M0 150 C 80 120, 140 180, 220 140 S 360 120, 400 150" />
-      </g>
-      <text x="26" y="168" fontFamily="Inter, sans-serif" fontSize="30" fontWeight="700" fill="#0b0b0f">{p.name}</text>
-    </svg>
-  );
+/* Inisial monogram dari nama proyek */
+function initials(name) {
+  const w = name.replace(/[^A-Za-z0-9 ]/g, " ").trim().split(/\s+/).filter(Boolean);
+  if (w.length >= 2) return (w[0][0] + w[1][0]).toUpperCase();
+  return (name.replace(/[^A-Za-z0-9]/g, "").slice(0, 2) || "??").toUpperCase();
+}
+/* Mesh gradient candy per proyek */
+function meshStyle(p) {
+  return {
+    backgroundColor: "#16161d",
+    backgroundImage:
+      `radial-gradient(circle at 20% 15%, ${p.c1}, transparent 55%),` +
+      `radial-gradient(circle at 85% 80%, ${p.c2}, transparent 55%),` +
+      `radial-gradient(circle at 60% 45%, ${p.c1}55, transparent 60%)`,
+  };
 }
 
-/* Preview thumbnail: screenshot situs asli (thum.io) di atas gradien fallback */
-function Preview({ id, p }) {
-  const [failed, setFailed] = useState(false);
-  const shot = `https://image.thum.io/get/width/640/crop/500/noanimate/${p.url}`;
-  return (
-    <div className="absolute inset-0">
-      <Thumb id={id} p={p} />
-      {!failed && (
-        <img src={shot} alt={p.name} draggable="false" onError={() => setFailed(true)}
-          className="absolute inset-0 w-full h-full object-cover object-top" />
-      )}
-    </div>
-  );
-}
-
-function ProjectCard({ id, p, colKey, dragging, onDragStart, onDragEnd, onDelete }) {
+function ProjectCard({ id, p, colKey, dragging, canDrag, onDragStart, onDragEnd, onDelete }) {
   const { email, promptLogin } = useAuth();
   const locked = colKey === "pribadi" && !email;
   const open = () => { if (locked) { promptLogin(); return; } window.open(p.url, "_blank", "noopener"); };
   return (
     <div
-      draggable
+      draggable={canDrag}
       onDragStart={(e) => onDragStart(e, id)}
       onDragEnd={onDragEnd}
       onClick={open}
       title={locked ? "Masuk untuk buka" : p.url}
-      className={`group relative w-[340px] flex-shrink-0 rounded-xl overflow-hidden border transition-all duration-300 cursor-pointer select-none
-        ${dragging ? "opacity-40 border-white/40" : "border-white/10 hover:border-white/30"} bg-white/[0.03]`}
+      className={`group relative w-[150px] flex-shrink-0 select-none transition-all duration-200
+        ${dragging ? "opacity-40" : ""} ${canDrag ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}`}
     >
-      <div className="relative aspect-[16/10] overflow-hidden bg-black">
-        <div className={`absolute inset-0 ${locked ? "blur-md scale-110" : ""}`}><Preview id={id} p={p} /></div>
+      <div className="relative aspect-square rounded-2xl overflow-hidden border border-white/10 group-hover:border-white/30 transition-colors" style={meshStyle(p)}>
+        <span className={`absolute inset-0 flex items-center justify-center text-3xl font-bold tracking-tight text-white/95 ${locked ? "blur-[6px]" : ""}`} style={{ textShadow: "0 2px 14px rgba(0,0,0,0.4)" }}>{initials(p.name)}</span>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/35 to-transparent" />
         {locked && (
-          <div className="absolute inset-0 bg-black/55 flex flex-col items-center justify-center gap-1 text-white">
+          <div className="absolute inset-0 bg-black/45 flex items-center justify-center text-white">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
-            <span className="text-[11px] font-medium">Masuk untuk buka</span>
           </div>
         )}
-        <span className="absolute bottom-2 left-2 text-[10px] font-medium text-white bg-black/55 backdrop-blur border border-white/20 rounded-full px-2 py-0.5">{FRAMEWORK[p.fw]}</span>
-        <span className="absolute top-2 left-2 text-white/70 bg-black/40 rounded-md p-0.5" title="Seret untuk pindah">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="6" r="1.5"/><circle cx="8" cy="12" r="1.5"/><circle cx="8" cy="18" r="1.5"/><circle cx="16" cy="6" r="1.5"/><circle cx="16" cy="12" r="1.5"/><circle cx="16" cy="18" r="1.5"/></svg>
-        </span>
-        <button onClick={(e) => { e.stopPropagation(); onDelete(id); }} title="Hapus dari dashboard"
-          className="absolute top-2 right-2 text-white bg-black/45 hover:bg-red-500 rounded-md p-1 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-all">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/></svg>
+        <span className="absolute top-2 left-2 w-2.5 h-2.5 rounded-full ring-2 ring-black/40" style={{ backgroundColor: STATUS[p.status].color }} title={STATUS[p.status].label} />
+        <button onClick={(e) => { e.stopPropagation(); onDelete(id); }} title="Hapus"
+          className="absolute top-1.5 right-1.5 text-white bg-black/45 hover:bg-red-500 rounded-lg p-1 opacity-0 group-hover:opacity-100 transition-all">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/></svg>
         </button>
       </div>
-      <div className="p-3">
-        <div className="flex items-center justify-between gap-2 mb-1">
-          <h3 className="text-sm font-semibold truncate">{p.name}</h3>
-          <span className="shrink-0 inline-flex items-center gap-1.5 text-[10px] text-gray-400">
-            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: STATUS[p.status].color }} />
-            {STATUS[p.status].label}
-          </span>
-        </div>
-        <p className="text-xs text-gray-400 truncate">{p.desc}</p>
+      <div className="mt-2 px-0.5">
+        <h3 className="text-[12.5px] font-medium truncate leading-tight">{p.name}</h3>
+        <p className="text-[10.5px] text-gray-500">{FRAMEWORK[p.fw]}</p>
       </div>
     </div>
   );
 }
 
-function Column({ cat, ids, over, setOver, onDrop, dragId, onDragStart, onDragEnd, onDelete }) {
+function Column({ cat, ids, over, setOver, onDrop, dragId, canDrag, onDragStart, onDragEnd, onDelete }) {
   const { email } = useAuth();
   const active = over === cat.key;
   const showLock = cat.locked && !email;
@@ -402,7 +373,7 @@ function Column({ cat, ids, over, setOver, onDrop, dragId, onDragStart, onDragEn
           <div className="w-full h-40 rounded-xl border border-dashed border-white/15 flex items-center justify-center text-sm text-gray-600">Tarik proyek ke sini</div>
         )}
         {ids.map((id) => (
-          <ProjectCard key={id} id={id} p={ALL_PROJECTS[id]} colKey={cat.key} dragging={dragId === id} onDragStart={onDragStart} onDragEnd={onDragEnd} onDelete={onDelete} />
+          <ProjectCard key={id} id={id} p={ALL_PROJECTS[id]} colKey={cat.key} dragging={dragId === id} canDrag={canDrag} onDragStart={onDragStart} onDragEnd={onDragEnd} onDelete={onDelete} />
         ))}
       </div>
     </div>
@@ -420,6 +391,8 @@ function Projects() {
   const [over, setOver] = useState(null);
   const [dragId, setDragId] = useState(null);
   const dragRef = useRef(null);
+  const { email, promptLogin } = useAuth();
+  const canDrag = !!email;
 
   useEffect(() => { localStorage.setItem("yusuf-board-v2", JSON.stringify(board)); }, [board]);
 
@@ -463,14 +436,22 @@ function Projects() {
           Semua <span className="candy-text">proyek Vercel</span>, satu tempat.
         </h2>
         <p className="text-gray-400 mt-4 text-[16px]">
-          Papan horizontal — seret kartu antar kategori, hapus lewat ikon tong sampah. Pribadi terkunci sampai login. Tersimpan otomatis.
+          {canDrag
+            ? "Seret kartu antar kategori, hapus lewat ikon tong sampah. Tersimpan otomatis."
+            : "Masuk untuk mengatur kartu (geser antar kategori) dan membuka proyek pribadi."}
         </p>
+        {!canDrag && (
+          <button onClick={promptLogin} className="mt-5 inline-flex items-center gap-2 bg-white text-black text-sm font-medium px-5 py-2.5 rounded-full hover:bg-gray-200 transition-colors">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+            Masuk untuk mengatur
+          </button>
+        )}
       </FadeInUp>
 
       <FadeInUp>
         <div className="flex flex-col gap-6">
           {CATEGORIES.map((cat) => (
-            <Column key={cat.key} cat={cat} ids={board[cat.key]} over={over} setOver={setOver} onDrop={onDrop} dragId={dragId} onDragStart={onDragStart} onDragEnd={onDragEnd} onDelete={onDelete} />
+            <Column key={cat.key} cat={cat} ids={board[cat.key]} over={over} setOver={setOver} onDrop={onDrop} dragId={dragId} canDrag={canDrag} onDragStart={onDragStart} onDragEnd={onDragEnd} onDelete={onDelete} />
           ))}
         </div>
         <div className="flex items-center justify-center gap-5 mt-8 text-xs">

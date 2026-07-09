@@ -1,0 +1,467 @@
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Plety — The intelligence layer for your Vercel projects</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          serif: ['Georgia', 'Cambria', 'Times New Roman', 'serif'],
+        },
+        keyframes: {
+          marquee: {
+            '0%': { transform: 'translateX(0)' },
+            '100%': { transform: 'translateX(-33.3333%)' },
+          },
+        },
+        animation: {
+          marquee: 'marquee 30s linear infinite',
+        },
+      },
+    },
+  };
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  html { scroll-behavior: smooth; }
+  body { font-family: 'Inter', sans-serif; }
+  ::selection { background: #a78bfa; color: #000; }
+  @keyframes candyshift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+  .candy-text {
+    background: linear-gradient(90deg,#f9a8d4,#c4b5fd,#93c5fd,#a7f3d0,#fde68a,#f9a8d4);
+    background-size: 300% 300%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: candyshift 8s ease infinite;
+  }
+</style>
+
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script>
+  // Force the classic JSX runtime (React.createElement) so no `import` statements are emitted.
+  Babel.registerPreset("react-classic", {
+    presets: [[Babel.availablePresets["react"], { runtime: "classic" }]],
+  });
+</script>
+
+<script type="text/babel" data-presets="react-classic">
+const { useState, useEffect, useRef } = React;
+
+/* ---------- Brand Logo (Untitled-UI style stroke geometric) ---------- */
+function Logo({ className = "" }) {
+  return (
+    <svg viewBox="0 0 32 32" fill="none" className={className} xmlns="http://www.w3.org/2000/svg">
+      <path d="M16 3 L27 9.5 V22.5 L16 29 L5 22.5 V9.5 Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/>
+      <path d="M16 3 V16 L27 9.5" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" opacity="0.55"/>
+      <path d="M16 16 L5 22.5 M16 16 L16 29" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" opacity="0.55"/>
+      <circle cx="16" cy="16" r="2.4" fill="currentColor"/>
+    </svg>
+  );
+}
+
+/* ---------- Scroll reveal wrapper ---------- */
+function FadeInUp({ children, delay = 0, className = "" }) {
+  const ref = useRef(null);
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting) { setShown(true); io.unobserve(el); } },
+      { threshold: 0.12 }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  return (
+    <div
+      ref={ref}
+      className={className}
+      style={{
+        transition: "transform 1000ms cubic-bezier(0.16,1,0.3,1), opacity 1000ms cubic-bezier(0.16,1,0.3,1)",
+        transitionDelay: `${delay}ms`,
+        transform: shown ? "translateY(0)" : "translateY(2.5rem)",
+        opacity: shown ? 1 : 0,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/* ---------- tiny stroke brand logos for marquee ---------- */
+const BrandLogo = ({ name }) => (
+  <div className="flex-shrink-0 px-8 flex items-center gap-2 text-gray-500">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <circle cx="12" cy="12" r="8" />
+      <path d="M8 12h8M12 8v8" />
+    </svg>
+    <span className="text-sm font-medium tracking-tight">{name}</span>
+  </div>
+);
+
+/* ---------- Primary / Secondary buttons ---------- */
+const Primary = ({ children, href = "#projects" }) => (
+  <a href={href} className="bg-white text-black text-sm font-medium px-5 py-2.5 rounded-full hover:bg-gray-200 transition-colors">
+    {children}
+  </a>
+);
+const Secondary = ({ children, href = "#projects" }) => (
+  <a href={href} className="bg-[#1F1F22] hover:bg-[#2A2A2D] text-white text-sm font-medium px-5 py-2.5 rounded-full border border-white/5 transition-colors">
+    {children}
+  </a>
+);
+
+/* ================= NAVBAR ================= */
+function Navbar() {
+  const [scrolled, setScrolled] = useState(false);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 20);
+    window.addEventListener("scroll", onScroll);
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  const links = [
+    ["About", "#about"], ["Projects", "#projects"], ["Contact", "#contact"],
+  ];
+  return (
+    <nav className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${scrolled ? "bg-black/80 backdrop-blur-md" : "bg-transparent"}`}>
+      <div className="max-w-7xl mx-auto px-6">
+        <div className="flex items-center justify-between h-16">
+          <a href="#about" className="flex items-center gap-2 text-white">
+            <Logo className="w-7 h-7" />
+            <span className="text-lg font-semibold tracking-tight">Plety</span>
+          </a>
+          <div className="hidden md:flex items-center gap-8 absolute left-1/2 -translate-x-1/2">
+            {links.map(([l, h]) => (
+              <a key={l} href={h} className="text-sm font-medium text-gray-300 hover:text-white transition-colors">{l}</a>
+            ))}
+          </div>
+          <div className="hidden md:block">
+            <a href="#projects" className="bg-[#1F1F22] hover:bg-[#2A2A2D] text-white text-sm font-medium px-5 py-2.5 rounded-full border border-white/5 transition-colors">Get started</a>
+          </div>
+          <button className="md:hidden text-white p-2" onClick={() => setOpen(v => !v)} aria-label="Menu">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              {open ? <path d="M6 6l12 12M18 6L6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}
+            </svg>
+          </button>
+        </div>
+        <div className={`md:hidden overflow-hidden transition-all duration-300 ${open ? "max-h-96 pb-4" : "max-h-0"}`}>
+          <div className="flex flex-col gap-1 pt-2">
+            {links.map(([l, h]) => (
+              <a key={l} href={h} onClick={() => setOpen(false)} className="text-sm font-medium text-gray-300 hover:text-white py-2.5 px-1 transition-colors">{l}</a>
+            ))}
+            <a href="#projects" onClick={() => setOpen(false)} className="mt-2 bg-[#1F1F22] text-white text-sm font-medium px-5 py-2.5 rounded-full border border-white/5 text-center">Get started</a>
+          </div>
+        </div>
+      </div>
+    </nav>
+  );
+}
+
+/* ================= HERO ================= */
+function Hero() {
+  const brands = ["Springfield", "Orbitc", "Cloud", "Amster", "Nexus"];
+  const loop = [...brands, ...brands, ...brands, ...brands];
+  return (
+    <section id="about" className="min-h-screen flex flex-col items-center justify-center pt-32 pb-20 relative z-0 px-6">
+      <video autoPlay loop muted playsInline className="absolute inset-0 -z-10 object-cover min-w-full min-h-full w-full h-full opacity-90">
+        <source src="https://cdn.sceneai.art/Hero%20Section%20Video/50b4f304-cdca-4e12-8735-580d225834be.mp4" type="video/mp4" />
+      </video>
+      <div className="absolute inset-0 -z-10 bg-gradient-to-b from-black/30 via-transparent to-black" />
+
+      <FadeInUp className="flex flex-col items-center">
+        <span className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs font-medium text-gray-300 mb-8 backdrop-blur-sm">✨ Announcing API 2.0</span>
+        <h1 className="text-5xl md:text-7xl font-medium tracking-tight mb-6 text-center text-white max-w-4xl">
+          The intelligence layer <br /> for clear <span className="font-serif italic font-normal">decisions.</span>
+        </h1>
+        <p className="text-[16px] text-gray-400 max-w-2xl text-center">
+          Our platform integrates seamlessly into your stack to deliver real-time understanding, not just predictions.
+        </p>
+        <div className="flex flex-row gap-3 mt-8">
+          <Primary>Get started</Primary>
+          <Secondary>Learn more</Secondary>
+        </div>
+      </FadeInUp>
+
+      <p className="text-sm text-gray-500 font-medium mb-8 text-center mt-24">Trusted by industry leaders</p>
+      <div className="w-full max-w-5xl overflow-hidden" style={{ WebkitMaskImage: "linear-gradient(to right, transparent, black 12%, black 88%, transparent)", maskImage: "linear-gradient(to right, transparent, black 12%, black 88%, transparent)" }}>
+        <div className="flex w-max animate-[marquee_30s_linear_infinite]">
+          {loop.map((b, i) => <BrandLogo key={i} name={b} />)}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ================= PROYEK (drag & drop) — data asli dari Vercel ================= */
+const FRAMEWORK = { vite: "Vite", nextjs: "Next.js", python: "Python", null: "Statis" };
+const STATUS = {
+  READY:   { label: "Aktif", color: "#4ade80" },
+  ERROR:   { label: "Error", color: "#f87171" },
+  BLOCKED: { label: "Diblokir", color: "#fbbf24" },
+};
+
+const ALL_PROJECTS = {
+  "cashiermiuw":            { name: "cashiermiuw", desc: "Kasir & kalkulator G2G.", url: "https://cashiermiuw.vercel.app", fw: "vite", status: "READY", c1: "#f472b6", c2: "#fb7185" },
+  "fotoflow":               { name: "FotoFlow", desc: "Sortir foto otomatis, jalan lokal di browser.", url: "https://fotoflow-three.vercel.app", fw: "vite", status: "READY", c1: "#a78bfa", c2: "#e879f9" },
+  "miuw_mauw":              { name: "miue (miuw_mauw)", desc: "Toko online — Vite · React · Firebase.", url: "https://miuwmauw.vercel.app", fw: "vite", status: "READY", c1: "#38bdf8", c2: "#22d3ee" },
+  "dakjalan-jembatan":      { name: "DAK Jalan-Jembatan", desc: "Papan antrian DAK jalan & jembatan.", url: "https://pfidjalan.vercel.app/", fw: null, status: "READY", c1: "#818cf8", c2: "#60a5fa" },
+  "dakjalan-tts-proxy":     { name: "DAK TTS Proxy", desc: "Proxy Text-to-Speech ElevenLabs.", url: "https://dakjalan-tts-proxy.vercel.app", fw: "python", status: "READY", c1: "#34d399", c2: "#2dd4bf" },
+  "dines-mulu-kapan-kerja": { name: "dines-mulu-kapan-kerja", desc: "Situs statis.", url: "https://dines-mulu-kapan-kerja.vercel.app", fw: null, status: "READY", c1: "#fbbf24", c2: "#f59e0b" },
+  "pidio-poto":             { name: "pidio-poto", desc: "Aplikasi video & foto.", url: "https://pidio-poto.vercel.app", fw: "vite", status: "READY", c1: "#f87171", c2: "#fb923c" },
+  "wawancara":              { name: "wawancara", desc: "Aplikasi wawancara/interview.", url: "https://wawancara-six.vercel.app", fw: null, status: "READY", c1: "#c084fc", c2: "#a78bfa" },
+  "bodiku":                 { name: "bodiku", desc: "Aplikasi web.", url: "https://bodiku.vercel.app", fw: "vite", status: "READY", c1: "#4ade80", c2: "#22c55e" },
+  "tes-deh":                { name: "tes-deh", desc: "Proyek uji coba.", url: "https://tes-deh.vercel.app", fw: "vite", status: "READY", c1: "#2dd4bf", c2: "#14b8a6" },
+  "dbh-sawit-2026":         { name: "DBH Sawit 2026", desc: "Perhitungan DBH sawit 2026.", url: "https://dbh-sawit-2026.vercel.app", fw: null, status: "READY", c1: "#60a5fa", c2: "#3b82f6" },
+  "kintil":                 { name: "kintil", desc: "Aplikasi web.", url: "https://kintil-psi.vercel.app", fw: "vite", status: "READY", c1: "#fb7185", c2: "#f43f5e" },
+  "betece":                 { name: "betece", desc: "Situs statis.", url: "https://betece-eight.vercel.app", fw: null, status: "READY", c1: "#f472b6", c2: "#fb7185" },
+  "hero-combo-manager":     { name: "Hero Combo Manager", desc: "Manajer kombo hero (game).", url: "https://hero-combo-manager.vercel.app", fw: "vite", status: "READY", c1: "#a78bfa", c2: "#e879f9" },
+  "emonjalan":              { name: "emonjalan", desc: "Aplikasi web.", url: "https://emonjalan.vercel.app", fw: "vite", status: "READY", c1: "#38bdf8", c2: "#22d3ee" },
+  "editanpoto":             { name: "editanpoto", desc: "Editor foto.", url: "https://editanpoto.vercel.app", fw: "vite", status: "READY", c1: "#818cf8", c2: "#60a5fa" },
+  "inipoto-studio-pro":     { name: "inipoto Studio Pro", desc: "Studio edit foto pro.", url: "https://inipoto-studio-pro.vercel.app", fw: "vite", status: "READY", c1: "#34d399", c2: "#2dd4bf" },
+  "steam-checker":          { name: "Steam Checker", desc: "Cek data Steam.", url: "https://steam-checker.vercel.app", fw: "nextjs", status: "READY", c1: "#fbbf24", c2: "#f59e0b" },
+  "ujian-sekolah":          { name: "Ujian Sekolah", desc: "Aplikasi kuis ujian SD · Next.js.", url: "https://ujian-sekolah-mu.vercel.app", fw: "nextjs", status: "READY", c1: "#f87171", c2: "#fb923c" },
+  "latihan-jualan-841x":    { name: "latihan-jualan-841x", desc: "Latihan toko online.", url: "https://latihan-jualan-841x-amiks-projects-86fa40ba.vercel.app", fw: "vite", status: "ERROR", c1: "#c084fc", c2: "#a78bfa" },
+};
+
+const DEFAULT_BOARD = {
+  pribadi: ["dakjalan-tts-proxy", "dines-mulu-kapan-kerja", "wawancara", "tes-deh", "kintil", "betece", "hero-combo-manager", "latihan-jualan-841x"],
+  umum: ["fotoflow", "cashiermiuw", "miuw_mauw", "ujian-sekolah", "dakjalan-jembatan", "dbh-sawit-2026", "steam-checker", "editanpoto", "inipoto-studio-pro", "pidio-poto", "bodiku", "emonjalan"],
+};
+
+/* Selaraskan board tersimpan dengan daftar proyek terkini (buang yang hilang, tambah yang baru) */
+function reconcile(saved) {
+  const seen = new Set([...(saved.pribadi || []), ...(saved.umum || [])]);
+  const pribadi = (saved.pribadi || []).filter((id) => ALL_PROJECTS[id]);
+  const umum = (saved.umum || []).filter((id) => ALL_PROJECTS[id]);
+  Object.keys(ALL_PROJECTS).forEach((id) => {
+    if (!seen.has(id)) (DEFAULT_BOARD.umum.includes(id) ? umum : pribadi).push(id);
+  });
+  return { pribadi, umum };
+}
+
+/* Thumbnail gambar (SVG) per proyek */
+function Thumb({ id, p }) {
+  const gid = "grad-" + id;
+  return (
+    <svg viewBox="0 0 400 200" className="w-full h-full" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id={gid} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor={p.c1} />
+          <stop offset="1" stopColor={p.c2} />
+        </linearGradient>
+      </defs>
+      <rect width="400" height="200" fill={`url(#${gid})`} />
+      <circle cx="330" cy="34" r="95" fill="#ffffff" opacity="0.14" />
+      <circle cx="60" cy="200" r="80" fill="#000000" opacity="0.12" />
+      <g stroke="#ffffff" strokeOpacity="0.18" strokeWidth="1.5" fill="none">
+        <path d="M0 150 C 80 120, 140 180, 220 140 S 360 120, 400 150" />
+      </g>
+      <text x="26" y="168" fontFamily="Inter, sans-serif" fontSize="30" fontWeight="700" fill="#0b0b0f">{p.name}</text>
+    </svg>
+  );
+}
+
+function ProjectCard({ id, p, dragging, onDragStart, onDragEnd }) {
+  return (
+    <a
+      href={p.url}
+      target={p.url !== "#" ? "_blank" : undefined}
+      rel="noreferrer"
+      draggable
+      onDragStart={(e) => onDragStart(e, id)}
+      onDragEnd={onDragEnd}
+      className={`group block rounded-2xl overflow-hidden border transition-all duration-300 cursor-grab active:cursor-grabbing select-none
+        ${dragging ? "opacity-40 border-white/40" : "border-white/10 hover:border-white/25 hover:-translate-y-1"} bg-white/[0.03]`}
+    >
+      <div className="relative aspect-[2/1] overflow-hidden">
+        <Thumb id={id} p={p} />
+        <span className="absolute top-3 right-3 text-[11px] font-medium text-white bg-black/40 backdrop-blur border border-white/20 rounded-full px-2.5 py-1">{FRAMEWORK[p.fw]}</span>
+        <span className="absolute top-3 left-3 text-white/70">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="6" r="1.6"/><circle cx="8" cy="12" r="1.6"/><circle cx="8" cy="18" r="1.6"/><circle cx="16" cy="6" r="1.6"/><circle cx="16" cy="12" r="1.6"/><circle cx="16" cy="18" r="1.6"/></svg>
+        </span>
+      </div>
+      <div className="p-5">
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <h3 className="text-base font-semibold truncate">{p.name}</h3>
+          <span className="shrink-0 inline-flex items-center gap-1.5 text-[11px] text-gray-400">
+            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: STATUS[p.status].color }} />
+            {STATUS[p.status].label}
+          </span>
+        </div>
+        <p className="text-sm text-gray-400 mb-4">{p.desc}</p>
+        <span className="text-sm font-medium text-white inline-flex items-center gap-1.5 group-hover:gap-2.5 transition-all">
+          Buka proyek
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </span>
+      </div>
+    </a>
+  );
+}
+
+function Column({ title, subtitle, colKey, ids, over, setOver, onDrop, dragId, onDragStart, onDragEnd }) {
+  const active = over === colKey;
+  return (
+    <div
+      onDragOver={(e) => { e.preventDefault(); if (over !== colKey) setOver(colKey); }}
+      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOver(o => (o === colKey ? null : o)); }}
+      onDrop={(e) => { e.preventDefault(); onDrop(colKey); setOver(null); }}
+      className={`rounded-3xl border p-5 transition-colors duration-200 ${active ? "border-white/40 bg-white/[0.05]" : "border-white/10 bg-white/[0.015]"}`}
+    >
+      <div className="flex items-center justify-between mb-5 px-1">
+        <div>
+          <h3 className="text-lg font-semibold">{title}</h3>
+          <p className="text-xs text-gray-500">{subtitle}</p>
+        </div>
+        <span className="text-xs text-gray-400 bg-white/5 border border-white/10 rounded-full px-2.5 py-1">{ids.length}</span>
+      </div>
+      <div className="grid sm:grid-cols-2 gap-4 min-h-[140px]">
+        {ids.length === 0 && (
+          <div className="col-span-full h-32 rounded-2xl border border-dashed border-white/15 flex items-center justify-center text-sm text-gray-600">
+            Tarik proyek ke sini
+          </div>
+        )}
+        {ids.map((id) => (
+          <ProjectCard key={id} id={id} p={ALL_PROJECTS[id]} dragging={dragId === id} onDragStart={onDragStart} onDragEnd={onDragEnd} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Projects() {
+  const [board, setBoard] = useState(() => {
+    try {
+      const s = JSON.parse(localStorage.getItem("plety-board-v2"));
+      if (s && Array.isArray(s.umum) && Array.isArray(s.pribadi)) return reconcile(s);
+    } catch (e) {}
+    return DEFAULT_BOARD;
+  });
+  const [over, setOver] = useState(null);
+  const [dragId, setDragId] = useState(null);
+  const dragRef = useRef(null);
+
+  useEffect(() => {
+    localStorage.setItem("plety-board-v2", JSON.stringify(board));
+  }, [board]);
+
+  const onDragStart = (e, id) => {
+    dragRef.current = id;
+    setDragId(id);
+    e.dataTransfer.effectAllowed = "move";
+    try { e.dataTransfer.setData("text/plain", id); } catch (_) {}
+  };
+  const onDragEnd = () => { dragRef.current = null; setDragId(null); setOver(null); };
+
+  const onDrop = (target) => {
+    const id = dragRef.current;
+    if (!id) return;
+    setBoard((prev) => {
+      const umum = prev.umum.filter((x) => x !== id);
+      const pribadi = prev.pribadi.filter((x) => x !== id);
+      const next = { umum, pribadi };
+      if (!next[target].includes(id)) next[target] = [...next[target], id];
+      return next;
+    });
+    dragRef.current = null;
+    setDragId(null);
+  };
+
+  return (
+    <section id="projects" className="max-w-7xl mx-auto py-24 px-6">
+      <FadeInUp className="text-center mb-14">
+        <span className="text-sm font-medium candy-text">✨ Ruang kerjamu</span>
+        <h2 className="text-4xl md:text-5xl font-semibold mt-3 tracking-tight">
+          Semua <span className="candy-text">proyek Vercel</span>, satu tempat.
+        </h2>
+        <p className="text-gray-400 max-w-xl mx-auto mt-4 text-[16px]">
+          Seret setiap kartu untuk memisahkan proyek pribadi dan umum. Susunanmu tersimpan otomatis.
+        </p>
+      </FadeInUp>
+
+      <FadeInUp>
+        <div className="grid lg:grid-cols-2 gap-6">
+          <Column title="Proyek Pribadi" subtitle="Hanya kamu yang lihat" colKey="pribadi" ids={board.pribadi}
+                  over={over} setOver={setOver} onDrop={onDrop} dragId={dragId} onDragStart={onDragStart} onDragEnd={onDragEnd} />
+          <Column title="Proyek Umum" subtitle="Tampil untuk publik" colKey="umum" ids={board.umum}
+                  over={over} setOver={setOver} onDrop={onDrop} dragId={dragId} onDragStart={onDragStart} onDragEnd={onDragEnd} />
+        </div>
+        <div className="text-center mt-8">
+          <button onClick={() => setBoard(DEFAULT_BOARD)} className="text-xs text-gray-500 hover:text-gray-300 transition-colors">
+            Atur ulang ke bawaan
+          </button>
+        </div>
+      </FadeInUp>
+    </section>
+  );
+}
+
+/* ================= FOOTER ================= */
+function Footer() {
+  const cols = [
+    ["Product", ["About", "Pricing", "Changelog", "Contact"]],
+    ["Legal", ["Terms of service", "Privacy policy", "404"]],
+    ["Connect", ["Instagram", "YouTube", "LinkedIn", "Twitter / X"]],
+  ];
+  return (
+    <footer id="contact" className="relative z-0 pt-32 pb-10 px-6 border-t border-white/5 overflow-hidden">
+      <video autoPlay loop muted playsInline className="absolute inset-0 object-cover w-full h-full opacity-40 -z-10">
+        <source src="https://cdn.sceneai.art/Hero%20Section%20Video/50b4f304-cdca-4e12-8735-580d225834be.mp4" type="video/mp4" />
+      </video>
+      <div className="absolute inset-0 -z-10 bg-gradient-to-b from-black via-black/60 to-black" />
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-8 max-w-7xl mx-auto mb-24">
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <Logo className="w-7 h-7 text-white" />
+            <span className="text-xl font-bold">Plety</span>
+          </div>
+          <p className="text-sm text-gray-400 max-w-[220px]">Speed, scale, and smarts — deployed.</p>
+        </div>
+        {cols.map(([title, items]) => (
+          <div key={title}>
+            <h4 className="text-sm font-semibold text-white mb-4">{title}</h4>
+            <ul className="space-y-3">
+              {items.map(it => (
+                <li key={it}><a href="#" className="text-sm text-gray-400 hover:text-white transition-colors">{it}</a></li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-col md:flex-row justify-center items-center gap-4 text-xs text-gray-500 border-t border-white/5 pt-8 max-w-7xl mx-auto text-center">
+        <span>© 2026 Plety. All rights reserved · by <span className="text-gray-300">Re-text</span> · Made in <span className="text-gray-300">Gemini</span></span>
+      </div>
+    </footer>
+  );
+}
+
+/* ================= APP ================= */
+function App() {
+  return (
+    <div className="bg-black text-white min-h-screen antialiased overflow-x-hidden">
+      <Navbar />
+      <Hero />
+      <Projects />
+      <Footer />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>

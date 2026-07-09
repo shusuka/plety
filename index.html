@@ -1,6 +1,6 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Plety — The intelligence layer for your Vercel projects</title>
+<title>Yusuf — Dashboard proyek Vercel</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
   tailwind.config = {
@@ -9,15 +9,6 @@
         fontFamily: {
           sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
           serif: ['Georgia', 'Cambria', 'Times New Roman', 'serif'],
-        },
-        keyframes: {
-          marquee: {
-            '0%': { transform: 'translateX(0)' },
-            '100%': { transform: 'translateX(-33.3333%)' },
-          },
-        },
-        animation: {
-          marquee: 'marquee 30s linear infinite',
         },
       },
     },
@@ -58,9 +49,12 @@
 </script>
 
 <script type="text/babel" data-presets="react-classic">
-const { useState, useEffect, useRef } = React;
+const { useState, useEffect, useRef, useContext } = React;
 
-/* ---------- Brand Logo (Untitled-UI style stroke geometric) ---------- */
+/* ==== Sandi akses proyek pribadi — GANTI sesukamu ==== */
+const AKSES_SANDI = "yusuf";
+
+/* ---------- Brand Logo (stroke geometric) ---------- */
 function Logo({ className = "" }) {
   return (
     <svg viewBox="0 0 32 32" fill="none" className={className} xmlns="http://www.w3.org/2000/svg">
@@ -72,7 +66,7 @@ function Logo({ className = "" }) {
   );
 }
 
-/* ---------- Scroll reveal wrapper ---------- */
+/* ---------- Scroll reveal ---------- */
 function FadeInUp({ children, delay = 0, className = "" }) {
   const ref = useRef(null);
   const [shown, setShown] = useState(false);
@@ -87,72 +81,103 @@ function FadeInUp({ children, delay = 0, className = "" }) {
     return () => io.disconnect();
   }, []);
   return (
-    <div
-      ref={ref}
-      className={className}
+    <div ref={ref} className={className}
       style={{
         transition: "transform 1000ms cubic-bezier(0.16,1,0.3,1), opacity 1000ms cubic-bezier(0.16,1,0.3,1)",
         transitionDelay: `${delay}ms`,
         transform: shown ? "translateY(0)" : "translateY(2.5rem)",
         opacity: shown ? 1 : 0,
-      }}
-    >
+      }}>
       {children}
     </div>
   );
 }
 
-/* ---------- tiny stroke brand logos for marquee ---------- */
-const BrandLogo = ({ name }) => (
-  <div className="flex-shrink-0 px-8 flex items-center gap-2 text-gray-500">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <circle cx="12" cy="12" r="8" />
-      <path d="M8 12h8M12 8v8" />
-    </svg>
-    <span className="text-sm font-medium tracking-tight">{name}</span>
-  </div>
-);
+/* ---------- Auth (login email, client-side) ---------- */
+const AuthCtx = React.createContext(null);
+const useAuth = () => useContext(AuthCtx);
 
-/* ---------- Primary / Secondary buttons ---------- */
-const Primary = ({ children, href = "#projects" }) => (
-  <a href={href} className="bg-white text-black text-sm font-medium px-5 py-2.5 rounded-full hover:bg-gray-200 transition-colors">
-    {children}
-  </a>
+function AuthProvider({ children }) {
+  const [email, setEmail] = useState(() => localStorage.getItem("yusuf-auth") || null);
+  const [modal, setModal] = useState(false);
+  const login = (e) => { localStorage.setItem("yusuf-auth", e); setEmail(e); setModal(false); };
+  const logout = () => { localStorage.removeItem("yusuf-auth"); setEmail(null); };
+  return (
+    <AuthCtx.Provider value={{ email, login, logout, promptLogin: () => setModal(true) }}>
+      {children}
+      {modal && <LoginModal onClose={() => setModal(false)} onLogin={login} />}
+    </AuthCtx.Provider>
+  );
+}
+
+function LoginModal({ onClose, onLogin }) {
+  const [email, setEmail] = useState("");
+  const [sandi, setSandi] = useState("");
+  const [err, setErr] = useState("");
+  const submit = (e) => {
+    e.preventDefault();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setErr("Email tidak valid."); return; }
+    if (sandi !== AKSES_SANDI) { setErr("Sandi salah."); return; }
+    onLogin(email);
+  };
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center px-6 bg-black/70 backdrop-blur-sm" onClick={onClose}>
+      <form onClick={(e) => e.stopPropagation()} onSubmit={submit} className="w-full max-w-sm bg-[#101012] border border-white/10 rounded-2xl p-6">
+        <div className="flex items-center gap-2 mb-1"><Logo className="w-6 h-6 text-white" /><span className="font-semibold">Masuk</span></div>
+        <p className="text-sm text-gray-400 mb-5">Login untuk membuka proyek pribadi.</p>
+        <label className="block text-xs text-gray-400 mb-1">Email</label>
+        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="kamu@email.com" autoFocus
+          className="w-full mb-3 bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-white/30" />
+        <label className="block text-xs text-gray-400 mb-1">Sandi</label>
+        <input type="password" value={sandi} onChange={(e) => setSandi(e.target.value)} placeholder="••••••"
+          className="w-full mb-3 bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-white/30" />
+        {err && <p className="text-xs text-red-400 mb-3">{err}</p>}
+        <button type="submit" className="w-full bg-white text-black text-sm font-medium py-2.5 rounded-xl hover:bg-gray-200 transition-colors">Masuk</button>
+        <button type="button" onClick={onClose} className="w-full text-xs text-gray-500 mt-3 hover:text-gray-300">Batal</button>
+      </form>
+    </div>
+  );
+}
+
+/* ---------- buttons ---------- */
+const Primary = ({ children, href = "#projects", onClick }) => (
+  <a href={href} onClick={onClick} className="bg-white text-black text-sm font-medium px-5 py-2.5 rounded-full hover:bg-gray-200 transition-colors cursor-pointer">{children}</a>
 );
-const Secondary = ({ children, href = "#projects" }) => (
-  <a href={href} className="bg-[#1F1F22] hover:bg-[#2A2A2D] text-white text-sm font-medium px-5 py-2.5 rounded-full border border-white/5 transition-colors">
-    {children}
-  </a>
+const Secondary = ({ children, onClick }) => (
+  <button onClick={onClick} className="bg-[#1F1F22] hover:bg-[#2A2A2D] text-white text-sm font-medium px-5 py-2.5 rounded-full border border-white/5 transition-colors">{children}</button>
 );
 
 /* ================= NAVBAR ================= */
 function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
+  const { email, logout, promptLogin } = useAuth();
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
-  const links = [
-    ["About", "#about"], ["Projects", "#projects"], ["Contact", "#contact"],
-  ];
+  const links = [["Beranda", "#about"], ["Proyek", "#projects"], ["Kontak", "#contact"]];
+  const AuthBtn = ({ mobile }) => email ? (
+    <div className={`flex items-center gap-3 ${mobile ? "mt-2" : ""}`}>
+      <span className="text-xs text-gray-400 max-w-[150px] truncate">{email}</span>
+      <button onClick={logout} className="text-white text-sm font-medium px-4 py-2 rounded-full border border-white/10 hover:bg-white/5 transition-colors">Keluar</button>
+    </div>
+  ) : (
+    <button onClick={() => { promptLogin(); setOpen(false); }} className={`bg-[#1F1F22] hover:bg-[#2A2A2D] text-white text-sm font-medium px-5 py-2.5 rounded-full border border-white/5 transition-colors ${mobile ? "mt-2 w-full" : ""}`}>Masuk</button>
+  );
   return (
     <nav className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${scrolled ? "bg-black/80 backdrop-blur-md" : "bg-transparent"}`}>
       <div className="max-w-7xl mx-auto px-6">
         <div className="flex items-center justify-between h-16">
           <a href="#about" className="flex items-center gap-2 text-white">
             <Logo className="w-7 h-7" />
-            <span className="text-lg font-semibold tracking-tight">Plety</span>
+            <span className="text-lg font-semibold tracking-tight">Yusuf</span>
           </a>
           <div className="hidden md:flex items-center gap-8 absolute left-1/2 -translate-x-1/2">
-            {links.map(([l, h]) => (
-              <a key={l} href={h} className="text-sm font-medium text-gray-300 hover:text-white transition-colors">{l}</a>
-            ))}
+            {links.map(([l, h]) => <a key={l} href={h} className="text-sm font-medium text-gray-300 hover:text-white transition-colors">{l}</a>)}
           </div>
-          <div className="hidden md:block">
-            <a href="#projects" className="bg-[#1F1F22] hover:bg-[#2A2A2D] text-white text-sm font-medium px-5 py-2.5 rounded-full border border-white/5 transition-colors">Get started</a>
-          </div>
+          <div className="hidden md:block"><AuthBtn /></div>
           <button className="md:hidden text-white p-2" onClick={() => setOpen(v => !v)} aria-label="Menu">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
               {open ? <path d="M6 6l12 12M18 6L6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}
@@ -161,10 +186,8 @@ function Navbar() {
         </div>
         <div className={`md:hidden overflow-hidden transition-all duration-300 ${open ? "max-h-96 pb-4" : "max-h-0"}`}>
           <div className="flex flex-col gap-1 pt-2">
-            {links.map(([l, h]) => (
-              <a key={l} href={h} onClick={() => setOpen(false)} className="text-sm font-medium text-gray-300 hover:text-white py-2.5 px-1 transition-colors">{l}</a>
-            ))}
-            <a href="#projects" onClick={() => setOpen(false)} className="mt-2 bg-[#1F1F22] text-white text-sm font-medium px-5 py-2.5 rounded-full border border-white/5 text-center">Get started</a>
+            {links.map(([l, h]) => <a key={l} href={h} onClick={() => setOpen(false)} className="text-sm font-medium text-gray-300 hover:text-white py-2.5 px-1 transition-colors">{l}</a>)}
+            <AuthBtn mobile />
           </div>
         </div>
       </div>
@@ -174,8 +197,7 @@ function Navbar() {
 
 /* ================= HERO ================= */
 function Hero() {
-  const brands = ["Springfield", "Orbitc", "Cloud", "Amster", "Nexus"];
-  const loop = [...brands, ...brands, ...brands, ...brands];
+  const { promptLogin, email } = useAuth();
   return (
     <section id="about" className="min-h-screen flex flex-col items-center justify-center pt-32 pb-20 relative z-0 px-6">
       <video autoPlay loop muted playsInline className="absolute inset-0 -z-10 object-cover min-w-full min-h-full w-full h-full opacity-90">
@@ -184,30 +206,23 @@ function Hero() {
       <div className="absolute inset-0 -z-10 bg-gradient-to-b from-black/30 via-transparent to-black" />
 
       <FadeInUp className="flex flex-col items-center">
-        <span className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs font-medium text-gray-300 mb-8 backdrop-blur-sm">✨ Announcing API 2.0</span>
+        <span className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs font-medium text-gray-300 mb-8 backdrop-blur-sm">✨ 20 proyek Vercel · 1 dashboard</span>
         <h1 className="text-5xl md:text-7xl font-medium tracking-tight mb-6 text-center text-white max-w-4xl">
-          The intelligence layer <br /> for clear <span className="font-serif italic font-normal">decisions.</span>
+          Semua proyekku, <br /> dalam <span className="font-serif italic font-normal">satu pintu.</span>
         </h1>
         <p className="text-[16px] text-gray-400 max-w-2xl text-center">
-          Our platform integrates seamlessly into your stack to deliver real-time understanding, not just predictions.
+          Kelola, buka cepat, dan pantau semua deployment Vercel milik Yusuf — pribadi, umum, kantor, jualan, hingga games — dari satu tempat.
         </p>
         <div className="flex flex-row gap-3 mt-8">
-          <Primary>Get started</Primary>
-          <Secondary>Learn more</Secondary>
+          <Primary href="#projects">Lihat proyek</Primary>
+          {!email && <Secondary onClick={promptLogin}>Masuk</Secondary>}
         </div>
       </FadeInUp>
-
-      <p className="text-sm text-gray-500 font-medium mb-8 text-center mt-24">Trusted by industry leaders</p>
-      <div className="w-full max-w-5xl overflow-hidden" style={{ WebkitMaskImage: "linear-gradient(to right, transparent, black 12%, black 88%, transparent)", maskImage: "linear-gradient(to right, transparent, black 12%, black 88%, transparent)" }}>
-        <div className="flex w-max animate-[marquee_30s_linear_infinite]">
-          {loop.map((b, i) => <BrandLogo key={i} name={b} />)}
-        </div>
-      </div>
     </section>
   );
 }
 
-/* ================= PROYEK (drag & drop) — data asli dari Vercel ================= */
+/* ================= PROYEK — data asli dari Vercel ================= */
 const FRAMEWORK = { vite: "Vite", nextjs: "Next.js", python: "Python", null: "Statis" };
 const STATUS = {
   READY:   { label: "Aktif", color: "#4ade80" },
@@ -238,20 +253,38 @@ const ALL_PROJECTS = {
   "latihan-jualan-841x":    { name: "latihan-jualan-841x", desc: "Latihan toko online.", url: "https://latihan-jualan-841x-amiks-projects-86fa40ba.vercel.app", fw: "vite", status: "ERROR", c1: "#c084fc", c2: "#a78bfa" },
 };
 
+const CATEGORIES = [
+  { key: "pribadi", title: "Pribadi", subtitle: "Perlu login untuk buka", locked: true },
+  { key: "umum",    title: "Umum",    subtitle: "Terbuka untuk publik" },
+  { key: "kantor",  title: "Kantor",  subtitle: "Kerjaan & instansi" },
+  { key: "jualan",  title: "Jualan",  subtitle: "Toko & transaksi" },
+  { key: "games",   title: "Games",   subtitle: "Game & hiburan" },
+];
+
 const DEFAULT_BOARD = {
-  pribadi: ["dakjalan-tts-proxy", "dines-mulu-kapan-kerja", "wawancara", "tes-deh", "kintil", "betece", "hero-combo-manager", "latihan-jualan-841x"],
-  umum: ["fotoflow", "cashiermiuw", "miuw_mauw", "ujian-sekolah", "dakjalan-jembatan", "dbh-sawit-2026", "steam-checker", "editanpoto", "inipoto-studio-pro", "pidio-poto", "bodiku", "emonjalan"],
+  pribadi: ["bodiku", "dines-mulu-kapan-kerja", "tes-deh", "betece"],
+  umum:    ["fotoflow", "pidio-poto", "editanpoto", "inipoto-studio-pro"],
+  kantor:  ["dakjalan-jembatan", "dakjalan-tts-proxy", "dbh-sawit-2026", "emonjalan", "wawancara", "ujian-sekolah"],
+  jualan:  ["cashiermiuw", "miuw_mauw", "latihan-jualan-841x"],
+  games:   ["hero-combo-manager", "steam-checker", "kintil"],
 };
 
-/* Selaraskan board tersimpan dengan daftar proyek terkini (buang yang hilang, tambah yang baru) */
+/* Selaraskan board tersimpan dengan daftar proyek terkini */
 function reconcile(saved) {
-  const seen = new Set([...(saved.pribadi || []), ...(saved.umum || [])]);
-  const pribadi = (saved.pribadi || []).filter((id) => ALL_PROJECTS[id]);
-  const umum = (saved.umum || []).filter((id) => ALL_PROJECTS[id]);
-  Object.keys(ALL_PROJECTS).forEach((id) => {
-    if (!seen.has(id)) (DEFAULT_BOARD.umum.includes(id) ? umum : pribadi).push(id);
+  const keys = CATEGORIES.map((c) => c.key);
+  const board = {};
+  const seen = new Set();
+  keys.forEach((k) => {
+    board[k] = (Array.isArray(saved[k]) ? saved[k] : []).filter((id) => ALL_PROJECTS[id]);
+    board[k].forEach((id) => seen.add(id));
   });
-  return { pribadi, umum };
+  Object.keys(ALL_PROJECTS).forEach((id) => {
+    if (!seen.has(id)) {
+      const def = keys.find((k) => DEFAULT_BOARD[k].includes(id)) || "umum";
+      board[def].push(id);
+    }
+  });
+  return board;
 }
 
 /* Thumbnail gambar (SVG) per proyek */
@@ -276,11 +309,15 @@ function Thumb({ id, p }) {
   );
 }
 
-function ProjectCard({ id, p, dragging, onDragStart, onDragEnd }) {
+function ProjectCard({ id, p, colKey, dragging, onDragStart, onDragEnd }) {
+  const { email, promptLogin } = useAuth();
+  const locked = colKey === "pribadi" && !email;
+  const handleClick = (e) => { if (locked) { e.preventDefault(); promptLogin(); } };
   return (
     <a
-      href={p.url}
-      target={p.url !== "#" ? "_blank" : undefined}
+      href={locked ? undefined : p.url}
+      onClick={handleClick}
+      target={!locked && p.url !== "#" ? "_blank" : undefined}
       rel="noreferrer"
       draggable
       onDragStart={(e) => onDragStart(e, id)}
@@ -289,7 +326,13 @@ function ProjectCard({ id, p, dragging, onDragStart, onDragEnd }) {
         ${dragging ? "opacity-40 border-white/40" : "border-white/10 hover:border-white/25 hover:-translate-y-1"} bg-white/[0.03]`}
     >
       <div className="relative aspect-[2/1] overflow-hidden">
-        <Thumb id={id} p={p} />
+        <div className={`absolute inset-0 ${locked ? "blur-md scale-110" : ""}`}><Thumb id={id} p={p} /></div>
+        {locked && (
+          <div className="absolute inset-0 bg-black/55 flex flex-col items-center justify-center gap-1 text-white">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+            <span className="text-[11px] font-medium">Masuk untuk buka</span>
+          </div>
+        )}
         <span className="absolute top-3 right-3 text-[11px] font-medium text-white bg-black/40 backdrop-blur border border-white/20 rounded-full px-2.5 py-1">{FRAMEWORK[p.fw]}</span>
         <span className="absolute top-3 left-3 text-white/70">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="6" r="1.6"/><circle cx="8" cy="12" r="1.6"/><circle cx="8" cy="18" r="1.6"/><circle cx="16" cy="6" r="1.6"/><circle cx="16" cy="12" r="1.6"/><circle cx="16" cy="18" r="1.6"/></svg>
@@ -305,7 +348,7 @@ function ProjectCard({ id, p, dragging, onDragStart, onDragEnd }) {
         </div>
         <p className="text-sm text-gray-400 mb-4">{p.desc}</p>
         <span className="text-sm font-medium text-white inline-flex items-center gap-1.5 group-hover:gap-2.5 transition-all">
-          Buka proyek
+          {locked ? "Terkunci" : "Buka proyek"}
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
         </span>
       </div>
@@ -313,30 +356,33 @@ function ProjectCard({ id, p, dragging, onDragStart, onDragEnd }) {
   );
 }
 
-function Column({ title, subtitle, colKey, ids, over, setOver, onDrop, dragId, onDragStart, onDragEnd }) {
-  const active = over === colKey;
+function Column({ cat, ids, over, setOver, onDrop, dragId, onDragStart, onDragEnd }) {
+  const { email } = useAuth();
+  const active = over === cat.key;
+  const showLock = cat.locked && !email;
   return (
     <div
-      onDragOver={(e) => { e.preventDefault(); if (over !== colKey) setOver(colKey); }}
-      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOver(o => (o === colKey ? null : o)); }}
-      onDrop={(e) => { e.preventDefault(); onDrop(colKey); setOver(null); }}
+      onDragOver={(e) => { e.preventDefault(); if (over !== cat.key) setOver(cat.key); }}
+      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOver((o) => (o === cat.key ? null : o)); }}
+      onDrop={(e) => { e.preventDefault(); onDrop(cat.key); setOver(null); }}
       className={`rounded-3xl border p-5 transition-colors duration-200 ${active ? "border-white/40 bg-white/[0.05]" : "border-white/10 bg-white/[0.015]"}`}
     >
       <div className="flex items-center justify-between mb-5 px-1">
         <div>
-          <h3 className="text-lg font-semibold">{title}</h3>
-          <p className="text-xs text-gray-500">{subtitle}</p>
+          <h3 className="text-lg font-semibold flex items-center gap-1.5">
+            {cat.title}
+            {showLock && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-gray-500"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>}
+          </h3>
+          <p className="text-xs text-gray-500">{cat.subtitle}</p>
         </div>
         <span className="text-xs text-gray-400 bg-white/5 border border-white/10 rounded-full px-2.5 py-1">{ids.length}</span>
       </div>
-      <div className="grid sm:grid-cols-2 gap-4 min-h-[140px]">
+      <div className="grid grid-cols-1 gap-4 min-h-[120px]">
         {ids.length === 0 && (
-          <div className="col-span-full h-32 rounded-2xl border border-dashed border-white/15 flex items-center justify-center text-sm text-gray-600">
-            Tarik proyek ke sini
-          </div>
+          <div className="h-28 rounded-2xl border border-dashed border-white/15 flex items-center justify-center text-sm text-gray-600">Tarik proyek ke sini</div>
         )}
         {ids.map((id) => (
-          <ProjectCard key={id} id={id} p={ALL_PROJECTS[id]} dragging={dragId === id} onDragStart={onDragStart} onDragEnd={onDragEnd} />
+          <ProjectCard key={id} id={id} p={ALL_PROJECTS[id]} colKey={cat.key} dragging={dragId === id} onDragStart={onDragStart} onDragEnd={onDragEnd} />
         ))}
       </div>
     </div>
@@ -346,8 +392,8 @@ function Column({ title, subtitle, colKey, ids, over, setOver, onDrop, dragId, o
 function Projects() {
   const [board, setBoard] = useState(() => {
     try {
-      const s = JSON.parse(localStorage.getItem("plety-board-v2"));
-      if (s && Array.isArray(s.umum) && Array.isArray(s.pribadi)) return reconcile(s);
+      const s = JSON.parse(localStorage.getItem("yusuf-board-v1"));
+      if (s && typeof s === "object") return reconcile(s);
     } catch (e) {}
     return DEFAULT_BOARD;
   });
@@ -355,9 +401,7 @@ function Projects() {
   const [dragId, setDragId] = useState(null);
   const dragRef = useRef(null);
 
-  useEffect(() => {
-    localStorage.setItem("plety-board-v2", JSON.stringify(board));
-  }, [board]);
+  useEffect(() => { localStorage.setItem("yusuf-board-v1", JSON.stringify(board)); }, [board]);
 
   const onDragStart = (e, id) => {
     dragRef.current = id;
@@ -371,9 +415,8 @@ function Projects() {
     const id = dragRef.current;
     if (!id) return;
     setBoard((prev) => {
-      const umum = prev.umum.filter((x) => x !== id);
-      const pribadi = prev.pribadi.filter((x) => x !== id);
-      const next = { umum, pribadi };
+      const next = {};
+      CATEGORIES.forEach((c) => { next[c.key] = prev[c.key].filter((x) => x !== id); });
       if (!next[target].includes(id)) next[target] = [...next[target], id];
       return next;
     });
@@ -389,21 +432,18 @@ function Projects() {
           Semua <span className="candy-text">proyek Vercel</span>, satu tempat.
         </h2>
         <p className="text-gray-400 max-w-xl mx-auto mt-4 text-[16px]">
-          Seret setiap kartu untuk memisahkan proyek pribadi dan umum. Susunanmu tersimpan otomatis.
+          Seret setiap kartu antar kategori. Proyek pribadi terkunci sampai kamu login. Susunanmu tersimpan otomatis.
         </p>
       </FadeInUp>
 
       <FadeInUp>
-        <div className="grid lg:grid-cols-2 gap-6">
-          <Column title="Proyek Pribadi" subtitle="Hanya kamu yang lihat" colKey="pribadi" ids={board.pribadi}
-                  over={over} setOver={setOver} onDrop={onDrop} dragId={dragId} onDragStart={onDragStart} onDragEnd={onDragEnd} />
-          <Column title="Proyek Umum" subtitle="Tampil untuk publik" colKey="umum" ids={board.umum}
-                  over={over} setOver={setOver} onDrop={onDrop} dragId={dragId} onDragStart={onDragStart} onDragEnd={onDragEnd} />
+        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+          {CATEGORIES.map((cat) => (
+            <Column key={cat.key} cat={cat} ids={board[cat.key]} over={over} setOver={setOver} onDrop={onDrop} dragId={dragId} onDragStart={onDragStart} onDragEnd={onDragEnd} />
+          ))}
         </div>
         <div className="text-center mt-8">
-          <button onClick={() => setBoard(DEFAULT_BOARD)} className="text-xs text-gray-500 hover:text-gray-300 transition-colors">
-            Atur ulang ke bawaan
-          </button>
+          <button onClick={() => setBoard(DEFAULT_BOARD)} className="text-xs text-gray-500 hover:text-gray-300 transition-colors">Atur ulang ke bawaan</button>
         </div>
       </FadeInUp>
     </section>
@@ -412,11 +452,6 @@ function Projects() {
 
 /* ================= FOOTER ================= */
 function Footer() {
-  const cols = [
-    ["Product", ["About", "Pricing", "Changelog", "Contact"]],
-    ["Legal", ["Terms of service", "Privacy policy", "404"]],
-    ["Connect", ["Instagram", "YouTube", "LinkedIn", "Twitter / X"]],
-  ];
   return (
     <footer id="contact" className="relative z-0 pt-32 pb-10 px-6 border-t border-white/5 overflow-hidden">
       <video autoPlay loop muted playsInline className="absolute inset-0 object-cover w-full h-full opacity-40 -z-10">
@@ -424,28 +459,21 @@ function Footer() {
       </video>
       <div className="absolute inset-0 -z-10 bg-gradient-to-b from-black via-black/60 to-black" />
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-8 max-w-7xl mx-auto mb-24">
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <Logo className="w-7 h-7 text-white" />
-            <span className="text-xl font-bold">Plety</span>
-          </div>
-          <p className="text-sm text-gray-400 max-w-[220px]">Speed, scale, and smarts — deployed.</p>
+      <div className="max-w-3xl mx-auto text-center mb-20">
+        <div className="flex items-center justify-center gap-2 mb-4">
+          <Logo className="w-8 h-8 text-white" />
+          <span className="text-2xl font-bold">Yusuf</span>
         </div>
-        {cols.map(([title, items]) => (
-          <div key={title}>
-            <h4 className="text-sm font-semibold text-white mb-4">{title}</h4>
-            <ul className="space-y-3">
-              {items.map(it => (
-                <li key={it}><a href="#" className="text-sm text-gray-400 hover:text-white transition-colors">{it}</a></li>
-              ))}
-            </ul>
-          </div>
-        ))}
+        <p className="text-gray-400 mb-8">Semua proyek Vercel — pribadi, umum, kantor, jualan, games — terorganisir dalam satu dashboard.</p>
+        <div className="flex flex-wrap justify-center gap-2">
+          {CATEGORIES.map((c) => (
+            <a key={c.key} href="#projects" className="text-xs text-gray-300 bg-white/5 border border-white/10 rounded-full px-3.5 py-1.5 hover:bg-white/10 transition-colors">{c.title}</a>
+          ))}
+        </div>
       </div>
 
       <div className="flex flex-col md:flex-row justify-center items-center gap-4 text-xs text-gray-500 border-t border-white/5 pt-8 max-w-7xl mx-auto text-center">
-        <span>© 2026 Plety. All rights reserved · by <span className="text-gray-300">Re-text</span> · Made in <span className="text-gray-300">Gemini</span></span>
+        <span>© 2026 Yusuf · Dashboard proyek Vercel</span>
       </div>
     </footer>
   );
@@ -454,12 +482,14 @@ function Footer() {
 /* ================= APP ================= */
 function App() {
   return (
-    <div className="bg-black text-white min-h-screen antialiased overflow-x-hidden">
-      <Navbar />
-      <Hero />
-      <Projects />
-      <Footer />
-    </div>
+    <AuthProvider>
+      <div className="bg-black text-white min-h-screen antialiased overflow-x-hidden">
+        <Navbar />
+        <Hero />
+        <Projects />
+        <Footer />
+      </div>
+    </AuthProvider>
   );
 }
 

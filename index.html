@@ -254,11 +254,11 @@ const ALL_PROJECTS = {
 };
 
 const CATEGORIES = [
-  { key: "pribadi", title: "Pribadi", subtitle: "Perlu login untuk buka", locked: true },
-  { key: "umum",    title: "Umum",    subtitle: "Terbuka untuk publik" },
-  { key: "kantor",  title: "Kantor",  subtitle: "Kerjaan & instansi" },
-  { key: "jualan",  title: "Jualan",  subtitle: "Toko & transaksi" },
-  { key: "games",   title: "Games",   subtitle: "Game & hiburan" },
+  { key: "pribadi", title: "Pribadi", subtitle: "Perlu login untuk buka", locked: true, accent: "#f472b6" },
+  { key: "umum",    title: "Umum",    subtitle: "Terbuka untuk publik", accent: "#38bdf8" },
+  { key: "kantor",  title: "Kantor",  subtitle: "Kerjaan & instansi", accent: "#a78bfa" },
+  { key: "jualan",  title: "Jualan",  subtitle: "Toko & transaksi", accent: "#f59e0b" },
+  { key: "games",   title: "Games",   subtitle: "Game & hiburan", accent: "#4ade80" },
 ];
 
 const DEFAULT_BOARD = {
@@ -267,15 +267,18 @@ const DEFAULT_BOARD = {
   kantor:  ["dakjalan-jembatan", "dakjalan-tts-proxy", "dbh-sawit-2026", "emonjalan", "wawancara", "ujian-sekolah"],
   jualan:  ["cashiermiuw", "miuw_mauw", "latihan-jualan-841x"],
   games:   ["hero-combo-manager", "steam-checker", "kintil"],
+  deleted: [],
 };
 
 /* Selaraskan board tersimpan dengan daftar proyek terkini */
 function reconcile(saved) {
   const keys = CATEGORIES.map((c) => c.key);
-  const board = {};
-  const seen = new Set();
+  const deleted = (Array.isArray(saved.deleted) ? saved.deleted : []).filter((id) => ALL_PROJECTS[id]);
+  const delSet = new Set(deleted);
+  const board = { deleted };
+  const seen = new Set(deleted);
   keys.forEach((k) => {
-    board[k] = (Array.isArray(saved[k]) ? saved[k] : []).filter((id) => ALL_PROJECTS[id]);
+    board[k] = (Array.isArray(saved[k]) ? saved[k] : []).filter((id) => ALL_PROJECTS[id] && !delSet.has(id));
     board[k].forEach((id) => seen.add(id));
   });
   Object.keys(ALL_PROJECTS).forEach((id) => {
@@ -309,54 +312,67 @@ function Thumb({ id, p }) {
   );
 }
 
-function ProjectCard({ id, p, colKey, dragging, onDragStart, onDragEnd }) {
+/* Preview thumbnail: screenshot situs asli (thum.io) di atas gradien fallback */
+function Preview({ id, p }) {
+  const [failed, setFailed] = useState(false);
+  const shot = `https://image.thum.io/get/width/640/crop/500/noanimate/${p.url}`;
+  return (
+    <div className="absolute inset-0">
+      <Thumb id={id} p={p} />
+      {!failed && (
+        <img src={shot} alt={p.name} draggable="false" onError={() => setFailed(true)}
+          className="absolute inset-0 w-full h-full object-cover object-top" />
+      )}
+    </div>
+  );
+}
+
+function ProjectCard({ id, p, colKey, dragging, onDragStart, onDragEnd, onDelete }) {
   const { email, promptLogin } = useAuth();
   const locked = colKey === "pribadi" && !email;
-  const handleClick = (e) => { if (locked) { e.preventDefault(); promptLogin(); } };
+  const open = () => { if (locked) { promptLogin(); return; } window.open(p.url, "_blank", "noopener"); };
   return (
-    <a
-      href={locked ? undefined : p.url}
-      onClick={handleClick}
-      target={!locked && p.url !== "#" ? "_blank" : undefined}
-      rel="noreferrer"
+    <div
       draggable
       onDragStart={(e) => onDragStart(e, id)}
       onDragEnd={onDragEnd}
-      className={`group block rounded-2xl overflow-hidden border transition-all duration-300 cursor-grab active:cursor-grabbing select-none
-        ${dragging ? "opacity-40 border-white/40" : "border-white/10 hover:border-white/25 hover:-translate-y-1"} bg-white/[0.03]`}
+      onClick={open}
+      title={locked ? "Masuk untuk buka" : p.url}
+      className={`group relative rounded-xl overflow-hidden border transition-all duration-300 cursor-pointer select-none
+        ${dragging ? "opacity-40 border-white/40" : "border-white/10 hover:border-white/30"} bg-white/[0.03]`}
     >
-      <div className="relative aspect-[2/1] overflow-hidden">
-        <div className={`absolute inset-0 ${locked ? "blur-md scale-110" : ""}`}><Thumb id={id} p={p} /></div>
+      <div className="relative aspect-[16/10] overflow-hidden bg-black">
+        <div className={`absolute inset-0 ${locked ? "blur-md scale-110" : ""}`}><Preview id={id} p={p} /></div>
         {locked && (
           <div className="absolute inset-0 bg-black/55 flex flex-col items-center justify-center gap-1 text-white">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
             <span className="text-[11px] font-medium">Masuk untuk buka</span>
           </div>
         )}
-        <span className="absolute top-3 right-3 text-[11px] font-medium text-white bg-black/40 backdrop-blur border border-white/20 rounded-full px-2.5 py-1">{FRAMEWORK[p.fw]}</span>
-        <span className="absolute top-3 left-3 text-white/70">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="6" r="1.6"/><circle cx="8" cy="12" r="1.6"/><circle cx="8" cy="18" r="1.6"/><circle cx="16" cy="6" r="1.6"/><circle cx="16" cy="12" r="1.6"/><circle cx="16" cy="18" r="1.6"/></svg>
+        <span className="absolute bottom-2 left-2 text-[10px] font-medium text-white bg-black/55 backdrop-blur border border-white/20 rounded-full px-2 py-0.5">{FRAMEWORK[p.fw]}</span>
+        <span className="absolute top-2 left-2 text-white/70 bg-black/40 rounded-md p-0.5" title="Seret untuk pindah">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="6" r="1.5"/><circle cx="8" cy="12" r="1.5"/><circle cx="8" cy="18" r="1.5"/><circle cx="16" cy="6" r="1.5"/><circle cx="16" cy="12" r="1.5"/><circle cx="16" cy="18" r="1.5"/></svg>
         </span>
+        <button onClick={(e) => { e.stopPropagation(); onDelete(id); }} title="Hapus dari dashboard"
+          className="absolute top-2 right-2 text-white bg-black/45 hover:bg-red-500 rounded-md p-1 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-all">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/></svg>
+        </button>
       </div>
-      <div className="p-5">
+      <div className="p-3">
         <div className="flex items-center justify-between gap-2 mb-1">
-          <h3 className="text-base font-semibold truncate">{p.name}</h3>
-          <span className="shrink-0 inline-flex items-center gap-1.5 text-[11px] text-gray-400">
+          <h3 className="text-sm font-semibold truncate">{p.name}</h3>
+          <span className="shrink-0 inline-flex items-center gap-1.5 text-[10px] text-gray-400">
             <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: STATUS[p.status].color }} />
             {STATUS[p.status].label}
           </span>
         </div>
-        <p className="text-sm text-gray-400 mb-4">{p.desc}</p>
-        <span className="text-sm font-medium text-white inline-flex items-center gap-1.5 group-hover:gap-2.5 transition-all">
-          {locked ? "Terkunci" : "Buka proyek"}
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-        </span>
+        <p className="text-xs text-gray-400 truncate">{p.desc}</p>
       </div>
-    </a>
+    </div>
   );
 }
 
-function Column({ cat, ids, over, setOver, onDrop, dragId, onDragStart, onDragEnd }) {
+function Column({ cat, ids, over, setOver, onDrop, dragId, onDragStart, onDragEnd, onDelete }) {
   const { email } = useAuth();
   const active = over === cat.key;
   const showLock = cat.locked && !email;
@@ -365,24 +381,28 @@ function Column({ cat, ids, over, setOver, onDrop, dragId, onDragStart, onDragEn
       onDragOver={(e) => { e.preventDefault(); if (over !== cat.key) setOver(cat.key); }}
       onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOver((o) => (o === cat.key ? null : o)); }}
       onDrop={(e) => { e.preventDefault(); onDrop(cat.key); setOver(null); }}
-      className={`rounded-3xl border p-5 transition-colors duration-200 ${active ? "border-white/40 bg-white/[0.05]" : "border-white/10 bg-white/[0.015]"}`}
+      className="flex-1 min-w-[280px] flex flex-col rounded-2xl border-2 transition-colors duration-200"
+      style={{ borderColor: active ? cat.accent : "rgba(255,255,255,0.16)", background: active ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.02)" }}
     >
-      <div className="flex items-center justify-between mb-5 px-1">
-        <div>
-          <h3 className="text-lg font-semibold flex items-center gap-1.5">
-            {cat.title}
-            {showLock && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-gray-500"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>}
-          </h3>
-          <p className="text-xs text-gray-500">{cat.subtitle}</p>
+      <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: "rgba(255,255,255,0.10)" }}>
+        <div className="flex items-center gap-2.5">
+          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.accent }} />
+          <div>
+            <h3 className="text-base font-semibold flex items-center gap-1.5">
+              {cat.title}
+              {showLock && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-gray-500"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>}
+            </h3>
+            <p className="text-[11px] text-gray-500">{cat.subtitle}</p>
+          </div>
         </div>
-        <span className="text-xs text-gray-400 bg-white/5 border border-white/10 rounded-full px-2.5 py-1">{ids.length}</span>
+        <span className="text-xs text-gray-300 rounded-full px-2.5 py-1 font-medium" style={{ backgroundColor: cat.accent + "22", border: "1px solid " + cat.accent + "55" }}>{ids.length}</span>
       </div>
-      <div className="grid grid-cols-1 gap-4 min-h-[120px]">
+      <div className="p-3 flex flex-col gap-3 overflow-y-auto" style={{ maxHeight: "62vh" }}>
         {ids.length === 0 && (
-          <div className="h-28 rounded-2xl border border-dashed border-white/15 flex items-center justify-center text-sm text-gray-600">Tarik proyek ke sini</div>
+          <div className="h-24 rounded-xl border border-dashed border-white/15 flex items-center justify-center text-xs text-gray-600">Tarik proyek ke sini</div>
         )}
         {ids.map((id) => (
-          <ProjectCard key={id} id={id} p={ALL_PROJECTS[id]} colKey={cat.key} dragging={dragId === id} onDragStart={onDragStart} onDragEnd={onDragEnd} />
+          <ProjectCard key={id} id={id} p={ALL_PROJECTS[id]} colKey={cat.key} dragging={dragId === id} onDragStart={onDragStart} onDragEnd={onDragEnd} onDelete={onDelete} />
         ))}
       </div>
     </div>
@@ -392,7 +412,7 @@ function Column({ cat, ids, over, setOver, onDrop, dragId, onDragStart, onDragEn
 function Projects() {
   const [board, setBoard] = useState(() => {
     try {
-      const s = JSON.parse(localStorage.getItem("yusuf-board-v1"));
+      const s = JSON.parse(localStorage.getItem("yusuf-board-v2"));
       if (s && typeof s === "object") return reconcile(s);
     } catch (e) {}
     return DEFAULT_BOARD;
@@ -401,7 +421,7 @@ function Projects() {
   const [dragId, setDragId] = useState(null);
   const dragRef = useRef(null);
 
-  useEffect(() => { localStorage.setItem("yusuf-board-v1", JSON.stringify(board)); }, [board]);
+  useEffect(() => { localStorage.setItem("yusuf-board-v2", JSON.stringify(board)); }, [board]);
 
   const onDragStart = (e, id) => {
     dragRef.current = id;
@@ -415,7 +435,7 @@ function Projects() {
     const id = dragRef.current;
     if (!id) return;
     setBoard((prev) => {
-      const next = {};
+      const next = { deleted: prev.deleted || [] };
       CATEGORIES.forEach((c) => { next[c.key] = prev[c.key].filter((x) => x !== id); });
       if (!next[target].includes(id)) next[target] = [...next[target], id];
       return next;
@@ -424,26 +444,43 @@ function Projects() {
     setDragId(null);
   };
 
+  const onDelete = (id) => {
+    setBoard((prev) => {
+      const next = { deleted: [...(prev.deleted || []), id] };
+      CATEGORIES.forEach((c) => { next[c.key] = prev[c.key].filter((x) => x !== id); });
+      return next;
+    });
+  };
+  const restoreAll = () => setBoard((prev) => reconcile({ ...prev, deleted: [] }));
+
+  const deletedCount = (board.deleted || []).length;
+
   return (
-    <section id="projects" className="max-w-7xl mx-auto py-24 px-6">
-      <FadeInUp className="text-center mb-14">
+    <section id="projects" className="w-full py-24 px-6">
+      <FadeInUp className="text-center mb-14 max-w-2xl mx-auto">
         <span className="text-sm font-medium candy-text">✨ Ruang kerjamu</span>
         <h2 className="text-4xl md:text-5xl font-semibold mt-3 tracking-tight">
           Semua <span className="candy-text">proyek Vercel</span>, satu tempat.
         </h2>
-        <p className="text-gray-400 max-w-xl mx-auto mt-4 text-[16px]">
-          Seret setiap kartu antar kategori. Proyek pribadi terkunci sampai kamu login. Susunanmu tersimpan otomatis.
+        <p className="text-gray-400 mt-4 text-[16px]">
+          Papan horizontal — seret kartu antar kategori, hapus lewat ikon tong sampah. Pribadi terkunci sampai login. Tersimpan otomatis.
         </p>
       </FadeInUp>
 
       <FadeInUp>
-        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+        <div className="flex gap-5 overflow-x-auto items-start pb-4">
           {CATEGORIES.map((cat) => (
-            <Column key={cat.key} cat={cat} ids={board[cat.key]} over={over} setOver={setOver} onDrop={onDrop} dragId={dragId} onDragStart={onDragStart} onDragEnd={onDragEnd} />
+            <Column key={cat.key} cat={cat} ids={board[cat.key]} over={over} setOver={setOver} onDrop={onDrop} dragId={dragId} onDragStart={onDragStart} onDragEnd={onDragEnd} onDelete={onDelete} />
           ))}
         </div>
-        <div className="text-center mt-8">
-          <button onClick={() => setBoard(DEFAULT_BOARD)} className="text-xs text-gray-500 hover:text-gray-300 transition-colors">Atur ulang ke bawaan</button>
+        <div className="flex items-center justify-center gap-5 mt-8 text-xs">
+          <button onClick={() => setBoard(DEFAULT_BOARD)} className="text-gray-500 hover:text-gray-300 transition-colors">Atur ulang ke bawaan</button>
+          {deletedCount > 0 && (
+            <button onClick={restoreAll} className="text-gray-400 hover:text-white transition-colors inline-flex items-center gap-1.5">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+              Pulihkan {deletedCount} yang dihapus
+            </button>
+          )}
         </div>
       </FadeInUp>
     </section>

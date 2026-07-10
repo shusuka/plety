@@ -202,7 +202,7 @@ function Navbar() {
     <button onClick={() => { promptLogin(); setOpen(false); }} className={`bg-[#1F1F22] hover:bg-[#2A2A2D] text-white text-sm font-medium px-5 py-2.5 rounded-full border border-white/5 transition-colors ${mobile ? "mt-2 w-full" : ""}`}>Masuk</button>
   );
   return (
-    <nav className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${scrolled ? "bg-black/80 backdrop-blur-md" : "bg-transparent"}`}>
+    <nav className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${scrolled || open ? "bg-black/90 backdrop-blur-md" : "bg-transparent"}`}>
       <div className="max-w-7xl mx-auto px-6">
         <div className="flex items-center justify-between h-16">
           <a href="#about" className="flex items-center gap-2 text-white">

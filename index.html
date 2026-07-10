@@ -48,11 +48,22 @@
   });
 </script>
 
+<!-- Firebase Auth (compat SDK) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script>
+  firebase.initializeApp({
+    apiKey: "AIzaSyDyyyt42UwlC5CMUOE_aKQApyTUVpb4qwI",
+    authDomain: "allinone-ad8ec.firebaseapp.com",
+    projectId: "allinone-ad8ec",
+    storageBucket: "allinone-ad8ec.firebasestorage.app",
+    messagingSenderId: "27486422194",
+    appId: "1:27486422194:web:222499e108474277c475ab",
+  });
+</script>
+
 <script type="text/babel" data-presets="react-classic">
 const { useState, useEffect, useRef, useContext } = React;
-
-/* ==== Sandi akses proyek pribadi — GANTI sesukamu ==== */
-const AKSES_SANDI = "yusuf";
 
 /* ---------- Brand Logo (stroke geometric) ---------- */
 function Logo({ className = "" }) {
@@ -98,33 +109,56 @@ const AuthCtx = React.createContext(null);
 const useAuth = () => useContext(AuthCtx);
 
 function AuthProvider({ children }) {
-  const [email, setEmail] = useState(() => localStorage.getItem("yusuf-auth") || null);
+  const [user, setUser] = useState(null);
   const [modal, setModal] = useState(false);
-  const login = (e) => { localStorage.setItem("yusuf-auth", e); setEmail(e); setModal(false); };
-  const logout = () => { localStorage.removeItem("yusuf-auth"); setEmail(null); };
+  useEffect(() => {
+    const unsub = firebase.auth().onAuthStateChanged((u) => setUser(u || null));
+    return () => unsub();
+  }, []);
+  const value = {
+    email: user ? user.email : null,
+    login: (e, p) => firebase.auth().signInWithEmailAndPassword(e, p),
+    logout: () => firebase.auth().signOut(),
+    promptLogin: () => setModal(true),
+  };
   return (
-    <AuthCtx.Provider value={{ email, login, logout, promptLogin: () => setModal(true) }}>
+    <AuthCtx.Provider value={value}>
       {children}
-      {modal && <LoginModal onClose={() => setModal(false)} onLogin={login} />}
+      {modal && <LoginModal onClose={() => setModal(false)} />}
     </AuthCtx.Provider>
   );
 }
 
-function LoginModal({ onClose, onLogin }) {
+function LoginModal({ onClose }) {
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [sandi, setSandi] = useState("");
   const [err, setErr] = useState("");
-  const submit = (e) => {
+  const [busy, setBusy] = useState(false);
+  const submit = async (e) => {
     e.preventDefault();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setErr("Email tidak valid."); return; }
-    if (sandi !== AKSES_SANDI) { setErr("Sandi salah."); return; }
-    onLogin(email);
+    setErr(""); setBusy(true);
+    try {
+      await login(email.trim(), sandi);
+      onClose();
+    } catch (ex) {
+      const c = ex && ex.code ? ex.code : "";
+      setErr(
+        c === "auth/invalid-email" ? "Format email tidak valid." :
+        (c === "auth/user-not-found" || c === "auth/wrong-password" || c === "auth/invalid-credential") ? "Email atau sandi salah." :
+        c === "auth/too-many-requests" ? "Terlalu banyak percobaan. Coba lagi nanti." :
+        c === "auth/network-request-failed" ? "Gangguan jaringan. Coba lagi." :
+        (ex && ex.message) || "Gagal masuk."
+      );
+    } finally {
+      setBusy(false);
+    }
   };
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center px-6 bg-black/70 backdrop-blur-sm" onClick={onClose}>
       <form onClick={(e) => e.stopPropagation()} onSubmit={submit} className="w-full max-w-sm bg-[#101012] border border-white/10 rounded-2xl p-6">
         <div className="flex items-center gap-2 mb-1"><Logo className="w-6 h-6 text-white" /><span className="font-semibold">Masuk</span></div>
-        <p className="text-sm text-gray-400 mb-5">Login untuk membuka proyek pribadi.</p>
+        <p className="text-sm text-gray-400 mb-5">Login untuk mengatur & membuka proyek pribadi.</p>
         <label className="block text-xs text-gray-400 mb-1">Email</label>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="kamu@email.com" autoFocus
           className="w-full mb-3 bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-white/30" />
@@ -132,7 +166,7 @@ function LoginModal({ onClose, onLogin }) {
         <input type="password" value={sandi} onChange={(e) => setSandi(e.target.value)} placeholder="••••••"
           className="w-full mb-3 bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-white/30" />
         {err && <p className="text-xs text-red-400 mb-3">{err}</p>}
-        <button type="submit" className="w-full bg-white text-black text-sm font-medium py-2.5 rounded-xl hover:bg-gray-200 transition-colors">Masuk</button>
+        <button type="submit" disabled={busy} className="w-full bg-white text-black text-sm font-medium py-2.5 rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-60">{busy ? "Masuk…" : "Masuk"}</button>
         <button type="button" onClick={onClose} className="w-full text-xs text-gray-500 mt-3 hover:text-gray-300">Batal</button>
       </form>
     </div>

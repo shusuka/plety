@@ -48,9 +48,10 @@
   });
 </script>
 
-<!-- Firebase Auth (compat SDK) -->
+<!-- Firebase (compat SDK): Auth + Firestore (sync board & gambar kartu) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script>
   firebase.initializeApp({
     apiKey: "AIzaSyDyyyt42UwlC5CMUOE_aKQApyTUVpb4qwI",
@@ -304,6 +305,38 @@ const DEFAULT_BOARD = {
   deleted: [],
 };
 
+/* Firestore: board disinkronkan ke semua user; gambar kartu 1 dokumen per proyek */
+const boardRef = () => firebase.firestore().doc("dashboard/board");
+const thumbsCol = () => firebase.firestore().collection("thumbs");
+
+/* Kompres gambar di browser jadi data URL kecil (tanpa Firebase Storage) */
+const MAX_THUMB_BYTES = 900000; // batas aman di bawah limit 1 MB per dokumen Firestore
+function compressImage(file, maxDim = 512) {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith("image/")) return reject(new Error("File harus berupa gambar."));
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Gagal membaca file."));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("Gambar tidak bisa dibaca."));
+      img.onload = () => {
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const c = document.createElement("canvas");
+        c.width = Math.round(img.width * scale);
+        c.height = Math.round(img.height * scale);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        let q = 0.75;
+        let out = c.toDataURL("image/jpeg", q);
+        while (out.length > MAX_THUMB_BYTES && q > 0.3) { q -= 0.1; out = c.toDataURL("image/jpeg", q); }
+        if (out.length > MAX_THUMB_BYTES) return reject(new Error("Gambar terlalu besar. Coba gambar lain."));
+        resolve(out);
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 /* Selaraskan board tersimpan dengan daftar proyek terkini */
 function reconcile(saved) {
   const keys = CATEGORIES.map((c) => c.key);
@@ -341,9 +374,12 @@ function meshStyle(p) {
   };
 }
 
-function ProjectCard({ id, p, colKey, dragging, canDrag, onDragStart, onDragEnd, onDelete }) {
+function ProjectCard({ id, p, colKey, img, dragging, canDrag, canEdit, onDragStart, onDragEnd, onDelete, onEditImage }) {
   const { email, promptLogin } = useAuth();
+  const [imgErr, setImgErr] = useState(false);
+  useEffect(() => { setImgErr(false); }, [img]);
   const locked = colKey === "pribadi" && !email;
+  const showImg = img && !imgErr;
   const open = () => { if (locked) { promptLogin(); return; } window.open(p.url, "_blank", "noopener"); };
   return (
     <div
@@ -355,8 +391,14 @@ function ProjectCard({ id, p, colKey, dragging, canDrag, onDragStart, onDragEnd,
       className={`group relative w-[150px] flex-shrink-0 select-none transition-all duration-200
         ${dragging ? "opacity-40" : ""} ${canDrag ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}`}
     >
-      <div className="relative aspect-square rounded-2xl overflow-hidden border border-white/10 group-hover:border-white/30 transition-colors" style={meshStyle(p)}>
-        <span className={`absolute inset-0 flex items-center justify-center text-3xl font-bold tracking-tight text-white/95 ${locked ? "blur-[6px]" : ""}`} style={{ textShadow: "0 2px 14px rgba(0,0,0,0.4)" }}>{initials(p.name)}</span>
+      <div className="relative aspect-square rounded-2xl overflow-hidden border border-white/10 group-hover:border-white/30 transition-colors"
+        style={showImg ? { backgroundColor: "#16161d" } : meshStyle(p)}>
+        {showImg ? (
+          <img src={img} alt={p.name} draggable="false" onError={() => setImgErr(true)}
+            className={`absolute inset-0 w-full h-full object-cover ${locked ? "blur-md scale-110" : ""}`} />
+        ) : (
+          <span className={`absolute inset-0 flex items-center justify-center text-3xl font-bold tracking-tight text-white/95 ${locked ? "blur-[6px]" : ""}`} style={{ textShadow: "0 2px 14px rgba(0,0,0,0.4)" }}>{initials(p.name)}</span>
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/35 to-transparent" />
         {locked && (
           <div className="absolute inset-0 bg-black/45 flex items-center justify-center text-white">
@@ -364,10 +406,18 @@ function ProjectCard({ id, p, colKey, dragging, canDrag, onDragStart, onDragEnd,
           </div>
         )}
         <span className="absolute top-2 left-2 w-2.5 h-2.5 rounded-full ring-2 ring-black/40" style={{ backgroundColor: STATUS[p.status].color }} title={STATUS[p.status].label} />
-        <button onClick={(e) => { e.stopPropagation(); onDelete(id); }} title="Hapus"
-          className="absolute top-1.5 right-1.5 text-white bg-black/45 hover:bg-red-500 rounded-lg p-1 opacity-0 group-hover:opacity-100 transition-all">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/></svg>
-        </button>
+        {canEdit && (
+          <div className="absolute top-1.5 right-1.5 flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all">
+            <button onClick={(e) => { e.stopPropagation(); onEditImage(id); }} title="Ganti gambar"
+              className="text-white bg-black/45 hover:bg-sky-500 rounded-lg p-1">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); onDelete(id); }} title="Hapus"
+              className="text-white bg-black/45 hover:bg-red-500 rounded-lg p-1">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/></svg>
+            </button>
+          </div>
+        )}
       </div>
       <div className="mt-2 px-0.5">
         <h3 className="text-[12.5px] font-medium truncate leading-tight">{p.name}</h3>
@@ -377,7 +427,62 @@ function ProjectCard({ id, p, colKey, dragging, canDrag, onDragStart, onDragEnd,
   );
 }
 
-function Column({ cat, ids, over, setOver, onDrop, dragId, canDrag, onDragStart, onDragEnd, onDelete }) {
+/* Modal admin: ganti gambar kartu dari link atau upload (dikompres, disimpan di Firestore) */
+function ImageModal({ id, p, current, onClose, onSave }) {
+  const [url, setUrl] = useState(current || "");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const isData = url.startsWith("data:");
+  const pick = async (file) => {
+    if (!file) return;
+    setBusy(true); setErr("");
+    try { setUrl(await compressImage(file)); }
+    catch (e) { setErr((e && e.message) || "Gagal memproses gambar."); }
+    finally { setBusy(false); }
+  };
+  const save = async (value) => {
+    setBusy(true); setErr("");
+    try { await onSave(value); onClose(); }
+    catch (e) { setErr((e && e.message) || "Gagal menyimpan."); setBusy(false); }
+  };
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center px-6 bg-black/70 backdrop-blur-sm" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm bg-[#101012] border border-white/10 rounded-2xl p-6">
+        <h3 className="font-semibold mb-1">Ganti gambar</h3>
+        <p className="text-sm text-gray-400 mb-4">{p.name}</p>
+
+        <div className="aspect-square w-28 mx-auto mb-4 rounded-xl overflow-hidden border border-white/10" style={url ? { backgroundColor: "#16161d" } : meshStyle(p)}>
+          {url
+            ? <img src={url} alt="" className="w-full h-full object-cover" />
+            : <span className="w-full h-full flex items-center justify-center text-2xl font-bold text-white/90">{initials(p.name)}</span>}
+        </div>
+
+        <label className="block text-xs text-gray-400 mb-1">Link gambar</label>
+        <input type="text" value={isData ? "" : url} onChange={(e) => setUrl(e.target.value)}
+          placeholder={isData ? "— memakai gambar hasil upload —" : "https://…/gambar.png"}
+          className="w-full mb-3 bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-white/30" />
+
+        <label className="block text-xs text-gray-400 mb-1">atau upload dari perangkat</label>
+        <input type="file" accept="image/*" disabled={busy} onChange={(e) => pick(e.target.files[0])}
+          className="w-full mb-2 text-xs text-gray-400 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-white/10 file:text-white file:text-xs hover:file:bg-white/20" />
+        {isData && <p className="text-[11px] text-emerald-400 mb-3">Gambar terunggah · {Math.round(url.length / 1024)} KB (dikompres)</p>}
+
+        {err && <p className="text-xs text-red-400 mb-3">{err}</p>}
+
+        <button onClick={() => save(url.trim())} disabled={busy}
+          className="w-full bg-white text-black text-sm font-medium py-2.5 rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-60">
+          {busy ? "Memproses…" : "Simpan"}
+        </button>
+        <div className="flex justify-between mt-3">
+          <button onClick={() => save("")} disabled={busy} className="text-xs text-gray-500 hover:text-red-400">Hapus gambar</button>
+          <button onClick={onClose} className="text-xs text-gray-500 hover:text-gray-300">Batal</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Column({ cat, ids, images, over, setOver, onDrop, dragId, canDrag, canEdit, onDragStart, onDragEnd, onDelete, onEditImage }) {
   const { email } = useAuth();
   const active = over === cat.key;
   const showLock = cat.locked && !email;
@@ -407,7 +512,7 @@ function Column({ cat, ids, over, setOver, onDrop, dragId, canDrag, onDragStart,
           <div className="w-full h-40 rounded-xl border border-dashed border-white/15 flex items-center justify-center text-sm text-gray-600">Tarik proyek ke sini</div>
         )}
         {ids.map((id) => (
-          <ProjectCard key={id} id={id} p={ALL_PROJECTS[id]} colKey={cat.key} dragging={dragId === id} canDrag={canDrag} onDragStart={onDragStart} onDragEnd={onDragEnd} onDelete={onDelete} />
+          <ProjectCard key={id} id={id} p={ALL_PROJECTS[id]} colKey={cat.key} img={images[id]} dragging={dragId === id} canDrag={canDrag} canEdit={canEdit} onDragStart={onDragStart} onDragEnd={onDragEnd} onDelete={onDelete} onEditImage={onEditImage} />
         ))}
       </div>
     </div>
@@ -415,20 +520,38 @@ function Column({ cat, ids, over, setOver, onDrop, dragId, canDrag, onDragStart,
 }
 
 function Projects() {
-  const [board, setBoard] = useState(() => {
-    try {
-      const s = JSON.parse(localStorage.getItem("yusuf-board-v2"));
-      if (s && typeof s === "object") return reconcile(s);
-    } catch (e) {}
-    return DEFAULT_BOARD;
-  });
+  const [board, setBoard] = useState(DEFAULT_BOARD);
+  const [images, setImages] = useState({});
+  const [boardErr, setBoardErr] = useState("");
+  const [thumbErr, setThumbErr] = useState("");
+  const [editing, setEditing] = useState(null);
+  const syncErr = boardErr || thumbErr;
   const [over, setOver] = useState(null);
   const [dragId, setDragId] = useState(null);
   const dragRef = useRef(null);
   const { email, promptLogin } = useAuth();
   const canDrag = !!email;
+  const canEdit = !!email;
 
-  useEffect(() => { localStorage.setItem("yusuf-board-v2", JSON.stringify(board)); }, [board]);
+  /* Sinkron realtime: semua user melihat papan & gambar yang sama */
+  useEffect(() => {
+    const unsubBoard = boardRef().onSnapshot(
+      (snap) => { setBoardErr(""); setBoard(snap.exists ? reconcile(snap.data()) : DEFAULT_BOARD); },
+      (err) => setBoardErr(err.message || "Gagal sinkron papan.")
+    );
+    const unsubThumbs = thumbsCol().onSnapshot(
+      (snap) => { setThumbErr(""); const m = {}; snap.forEach((d) => { m[d.id] = d.data().url; }); setImages(m); },
+      (err) => setThumbErr(err.message || "Gagal sinkron gambar.")
+    );
+    return () => { unsubBoard(); unsubThumbs(); };
+  }, []);
+
+  /* Tulis ke Firestore (admin saja); UI di-update optimistis */
+  const commit = (next) => {
+    setBoard(next);
+    if (!canEdit) return Promise.resolve();
+    return boardRef().set(next).catch((e) => { setSyncErr(e.message || "Gagal menyimpan."); throw e; });
+  };
 
   const onDragStart = (e, id) => {
     dragRef.current = id;
@@ -440,25 +563,29 @@ function Projects() {
 
   const onDrop = (target) => {
     const id = dragRef.current;
-    if (!id) return;
-    setBoard((prev) => {
-      const next = { deleted: prev.deleted || [] };
-      CATEGORIES.forEach((c) => { next[c.key] = prev[c.key].filter((x) => x !== id); });
-      if (!next[target].includes(id)) next[target] = [...next[target], id];
-      return next;
-    });
+    if (!id || !canEdit) return;
+    const next = { ...board, deleted: board.deleted || [] };
+    CATEGORIES.forEach((c) => { next[c.key] = board[c.key].filter((x) => x !== id); });
+    if (!next[target].includes(id)) next[target] = [...next[target], id];
+    commit(next);
     dragRef.current = null;
     setDragId(null);
   };
 
   const onDelete = (id) => {
-    setBoard((prev) => {
-      const next = { deleted: [...(prev.deleted || []), id] };
-      CATEGORIES.forEach((c) => { next[c.key] = prev[c.key].filter((x) => x !== id); });
-      return next;
-    });
+    if (!canEdit) return;
+    const next = { ...board, deleted: [...(board.deleted || []), id] };
+    CATEGORIES.forEach((c) => { next[c.key] = board[c.key].filter((x) => x !== id); });
+    commit(next);
   };
-  const restoreAll = () => setBoard((prev) => reconcile({ ...prev, deleted: [] }));
+  const restoreAll = () => { if (canEdit) commit(reconcile({ ...board, deleted: [] })); };
+  const resetBoard = () => { if (canEdit) commit(DEFAULT_BOARD); };
+
+  /* Gambar kartu: 1 dokumen per proyek di koleksi `thumbs` (data URL atau link) */
+  const saveImage = (id, url) => {
+    if (!canEdit) return Promise.resolve();
+    return url ? thumbsCol().doc(id).set({ url }) : thumbsCol().doc(id).delete();
+  };
 
   const deletedCount = (board.deleted || []).length;
 
@@ -470,34 +597,42 @@ function Projects() {
           Semua <span className="candy-text">proyek Vercel</span>, satu tempat.
         </h2>
         <p className="text-gray-400 mt-4 text-[16px]">
-          {canDrag
-            ? "Seret kartu antar kategori, hapus lewat ikon tong sampah. Tersimpan otomatis."
-            : "Masuk untuk mengatur kartu (geser antar kategori) dan membuka proyek pribadi."}
+          {canEdit
+            ? "Seret kartu antar kategori, ganti gambar, atau hapus. Perubahan langsung tersinkron ke semua pengguna."
+            : "Tampilan ini tersinkron untuk semua pengguna. Masuk sebagai admin untuk mengatur kartu dan membuka proyek pribadi."}
         </p>
-        {!canDrag && (
+        {!canEdit && (
           <button onClick={promptLogin} className="mt-5 inline-flex items-center gap-2 bg-white text-black text-sm font-medium px-5 py-2.5 rounded-full hover:bg-gray-200 transition-colors">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
-            Masuk untuk mengatur
+            Masuk sebagai admin
           </button>
         )}
+        {syncErr && <p className="mt-4 text-xs text-red-400">Sinkron bermasalah: {syncErr}</p>}
       </FadeInUp>
 
       <FadeInUp>
         <div className="flex flex-col gap-6">
           {CATEGORIES.map((cat) => (
-            <Column key={cat.key} cat={cat} ids={board[cat.key]} over={over} setOver={setOver} onDrop={onDrop} dragId={dragId} canDrag={canDrag} onDragStart={onDragStart} onDragEnd={onDragEnd} onDelete={onDelete} />
+            <Column key={cat.key} cat={cat} ids={board[cat.key]} images={images} over={over} setOver={setOver} onDrop={onDrop} dragId={dragId} canDrag={canDrag} canEdit={canEdit} onDragStart={onDragStart} onDragEnd={onDragEnd} onDelete={onDelete} onEditImage={setEditing} />
           ))}
         </div>
-        <div className="flex items-center justify-center gap-5 mt-8 text-xs">
-          <button onClick={() => setBoard(DEFAULT_BOARD)} className="text-gray-500 hover:text-gray-300 transition-colors">Atur ulang ke bawaan</button>
-          {deletedCount > 0 && (
-            <button onClick={restoreAll} className="text-gray-400 hover:text-white transition-colors inline-flex items-center gap-1.5">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
-              Pulihkan {deletedCount} yang dihapus
-            </button>
-          )}
-        </div>
+        {canEdit && (
+          <div className="flex items-center justify-center gap-5 mt-8 text-xs">
+            <button onClick={resetBoard} className="text-gray-500 hover:text-gray-300 transition-colors">Atur ulang ke bawaan</button>
+            {deletedCount > 0 && (
+              <button onClick={restoreAll} className="text-gray-400 hover:text-white transition-colors inline-flex items-center gap-1.5">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+                Pulihkan {deletedCount} yang dihapus
+              </button>
+            )}
+          </div>
+        )}
       </FadeInUp>
+
+      {editing && (
+        <ImageModal id={editing} p={ALL_PROJECTS[editing]} current={images[editing]}
+          onClose={() => setEditing(null)} onSave={(url) => saveImage(editing, url)} />
+      )}
     </section>
   );
 }
